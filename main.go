@@ -4,27 +4,52 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+
+	"github.com/gorilla/websocket"
 )
 
-func homePage(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello, World!")
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+}
+
+func reader(conn *websocket.Conn) {
+	for {
+		msg, p, err := conn.ReadMessage()
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		log.Println(string(p))
+
+		if err := conn.WriteMessage(msg, p); err != nil {
+			log.Println(err)
+			return
+		}
+	}
 }
 
 func wsEndpoint(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello, Sockets!")
-	// fmt.Println("Endpoint Hit")
-	// ws, err := upgrader.Upgrade(w, r, nil)
-	// if err != nil {
-	// 	fmt.Println(err)
-	// 	return
-	// }
+	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 
-	// go echo(ws)
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("Client connected")
+
+	reader(ws)
 }
 
 func setupRoutes() {
-	http.HandleFunc("/", homePage)
-	http.HandleFunc("/socket", wsEndpoint)
+	http.HandleFunc("/", sendHtml)
+	http.HandleFunc("/ws", wsEndpoint)
+}
+
+func sendHtml(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "index.html")
 }
 
 func main() {
